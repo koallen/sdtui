@@ -58,15 +58,23 @@ func main() {
 		SetFixed(1, 4).
 		SetCell(0, 0,
 			tview.NewTableCell("Enabled").
+				SetTextColor(tcell.ColorTeal).
+				SetAttributes(tcell.AttrBold).
 				SetSelectable(false)).
 		SetCell(0, 1,
 			tview.NewTableCell("Active").
+				SetTextColor(tcell.ColorTeal).
+				SetAttributes(tcell.AttrBold).
 				SetSelectable(false)).
 		SetCell(0, 2,
 			tview.NewTableCell("Path").
+				SetTextColor(tcell.ColorTeal).
+				SetAttributes(tcell.AttrBold).
 				SetSelectable(false)).
 		SetCell(0, 3,
 			tview.NewTableCell("Description").
+				SetTextColor(tcell.ColorTeal).
+				SetAttributes(tcell.AttrBold).
 				SetSelectable(false)).
 		SetSelectable(true, false)
 	sdUnitList.SetBorder(true).
@@ -86,10 +94,22 @@ func main() {
 	}
 	for row, unit := range serviceUnits {
 		//sdUnitList.AddItem(unit.File.Path, "", 0, nil)
-		sdUnitList.SetCellSimple(row + 1, 0, unit.Status.LoadState)
-		sdUnitList.SetCellSimple(row + 1, 1, unit.Status.ActiveState)
-		sdUnitList.SetCellSimple(row + 1, 2, unit.File.Path)
-		sdUnitList.SetCellSimple(row + 1, 3, unit.Status.Description)
+		sdUnitList.SetCell(row + 1, 0,
+			tview.NewTableCell(unit.Status.LoadState).
+				SetMaxWidth(1).
+				SetExpansion(1))
+		sdUnitList.SetCell(row + 1, 1,
+			tview.NewTableCell(unit.Status.ActiveState).
+				SetMaxWidth(1).
+				SetExpansion(1))
+		sdUnitList.SetCell(row + 1, 2,
+			tview.NewTableCell(unit.File.Path).
+				SetMaxWidth(10).
+				SetExpansion(10))
+		sdUnitList.SetCell(row + 1, 3,
+			tview.NewTableCell(unit.Status.Description).
+				SetMaxWidth(6).
+				SetExpansion(6))
 	}
 
 	// define key handler
@@ -111,7 +131,7 @@ func main() {
 	frame := tview.NewFrame(sdUnitList).
 		SetBorders(0, 0, 0, 0, 0, 0).
 		AddText("(q) Exit (r) Restart service (e) Edit", false, tview.AlignCenter, tcell.ColorWhite)
-	frame.SetBackgroundColor(tcell.ColorLime)
+	frame.SetBackgroundColor(tcell.ColorTeal)
 	if err := app.SetRoot(frame, true).SetFocus(sdUnitList).Run(); err != nil {
 		panic(err)
 	}
