@@ -1,23 +1,95 @@
 package main
 
 import (
+	"strings"
+	"github.com/coreos/go-systemd/dbus"
 	"github.com/gdamore/tcell"
 	"github.com/rivo/tview"
 )
+
+type ServiceUnit struct {
+	File dbus.UnitFile
+	Status dbus.UnitStatus
+}
+
+// this function collects all service units, regardless of their status
+func getAllServiceUnits(conn *dbus.Conn) ([]ServiceUnit, error) {
+	sdUnitFiles, err := conn.ListUnitFiles()
+	if err != nil {
+		return nil, err
+	}
+	sdUnits, err := conn.ListUnits()
+	if err != nil {
+		return nil, err
+	}
+
+	numOfServiceUnits := 0
+	for _, unitFile := range sdUnitFiles {
+		if strings.HasSuffix(unitFile.Path, ".service") {
+			numOfServiceUnits++
+		}
+	}
+	serviceUnits := make([]ServiceUnit, numOfServiceUnits)
+	index := 0
+	for _, unitFile := range sdUnitFiles {
+		if !strings.HasSuffix(unitFile.Path, ".service") {
+			continue
+		}
+		serviceUnits[index].File = unitFile
+		strSplit := strings.Split(unitFile.Path, "/")
+		serviceName := strSplit[len(strSplit)-1]
+		for _, unitStatus := range sdUnits {
+			if unitStatus.Name == serviceName {
+				serviceUnits[index].Status = unitStatus
+				break
+			}
+		}
+		index++
+	}
+
+	return serviceUnits, nil
+}
 
 func main() {
 	app := tview.NewApplication()
 
 	// display services
-	sdUnitList := tview.NewList().
-		ShowSecondaryText(false).
-		SetHighlightFullLine(true)
+	sdUnitList := tview.NewTable().
+		SetFixed(1, 4).
+		SetCell(0, 0,
+			tview.NewTableCell("Enabled").
+				SetSelectable(false)).
+		SetCell(0, 1,
+			tview.NewTableCell("Active").
+				SetSelectable(false)).
+		SetCell(0, 2,
+			tview.NewTableCell("Path").
+				SetSelectable(false)).
+		SetCell(0, 3,
+			tview.NewTableCell("Description").
+				SetSelectable(false)).
+		SetSelectable(true, false)
 	sdUnitList.SetBorder(true).
 		SetBorderColor(tcell.ColorGray).
 		SetBorderPadding(0, 0, 1, 1).
 		SetTitle(" sdtui ")
-	for row := 0; row < 10; row++ {
-		sdUnitList.AddItem("test service", "", 0, nil)
+
+	dbusConn, err := dbus.New()
+	if err != nil {
+		return
+	}
+	defer dbusConn.Close()
+
+	serviceUnits, err := getAllServiceUnits(dbusConn)
+	if err != nil {
+		return
+	}
+	for row, unit := range serviceUnits {
+		//sdUnitList.AddItem(unit.File.Path, "", 0, nil)
+		sdUnitList.SetCellSimple(row + 1, 0, unit.Status.LoadState)
+		sdUnitList.SetCellSimple(row + 1, 1, unit.Status.ActiveState)
+		sdUnitList.SetCellSimple(row + 1, 2, unit.File.Path)
+		sdUnitList.SetCellSimple(row + 1, 3, unit.Status.Description)
 	}
 
 	// define key handler
@@ -29,7 +101,7 @@ func main() {
 				app.Stop()
 				return nil
 			case 'r':
-				sdUnitList.SetItemText(sdUnitList.GetCurrentItem(), "this service is restarted", "")
+				//sdUnitList.SetItemText(sdUnitList.GetCurrentItem(), "this service is restarted", "")
 				return nil
 			}
 		}
