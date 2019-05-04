@@ -93,9 +93,8 @@ func main() {
 		return
 	}
 	for row, unit := range serviceUnits {
-		//sdUnitList.AddItem(unit.File.Path, "", 0, nil)
 		sdUnitList.SetCell(row + 1, 0,
-			tview.NewTableCell(unit.Status.LoadState).
+			tview.NewTableCell(unit.File.Type).
 				SetMaxWidth(1).
 				SetExpansion(1))
 		sdUnitList.SetCell(row + 1, 1,
