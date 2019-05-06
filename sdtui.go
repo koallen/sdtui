@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os/exec"
 	"strings"
+	"log"
 	"github.com/coreos/go-systemd/dbus"
 	"github.com/gdamore/tcell"
 	"github.com/rivo/tview"
@@ -66,6 +67,12 @@ func getServiceStatus(unitPath string) string {
 	cmd.Run() // the err is not checked because systemctl returns non-zero code
 
 	return out.String()
+}
+
+func getCurrentUnitPath(table *tview.Table) string {
+	currentRow, _ := table.GetSelection()
+
+	return table.GetCell(currentRow, 2).Text
 }
 
 func drawTable(table *tview.Table, unitList []ServiceUnit, filter string) {
@@ -143,7 +150,7 @@ func main() {
 		SetTitle(" Service status ")
 	helpText := tview.NewTextView().
 		SetTextAlign(tview.AlignCenter).
-		SetText("(q) Exit (r) Restart (R) Reload (s) Start (S) Stop (e) Enable (d) Disable (/) Filter")
+		SetText("(q) Exit (r) Reload/Restart (s) Start (S) Stop (e) Enable (d) Disable (/) Filter")
 
 	filterInput.SetLabel("Filter by: ").
 		SetDoneFunc(func(key tcell.Key) {
@@ -166,7 +173,7 @@ func main() {
 	drawTable(sdUnitList, allServiceUnits, filterText)
 
 	// define key handler
-	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+	sdUnitList.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
 		case tcell.KeyRune:
 			switch event.Rune() {
@@ -174,7 +181,68 @@ func main() {
 				app.Stop()
 				return nil
 			case 'r':
-				//sdUnitList.SetItemText(sdUnitList.GetCurrentItem(), "this service is restarted", "")
+				fallthrough
+			case 's':
+				out := make(chan string)
+				_, err = dbusConn.ReloadOrRestartUnit(getServiceName(getCurrentUnitPath(sdUnitList)), "replace", out)
+				if err != nil {
+					log.Fatal(err)
+				}
+				job := <-out
+				if job != "done" {
+					log.Fatal("Job is not done: ", job)
+				}
+				allServiceUnits, err = getAllServiceUnits(dbusConn)
+				if err != nil {
+					log.Fatal("Failed")
+				}
+				drawTable(sdUnitList, allServiceUnits, filterText)
+				return nil
+			case 'S':
+				out := make(chan string)
+				_, err = dbusConn.StopUnit(getServiceName(getCurrentUnitPath(sdUnitList)), "replace", out)
+				if err != nil {
+					log.Fatal(err)
+				}
+				job := <-out
+				if job != "done" {
+					log.Fatal("Job is not done: ", job)
+				}
+				allServiceUnits, err = getAllServiceUnits(dbusConn)
+				if err != nil {
+					log.Fatal("Failed")
+				}
+				drawTable(sdUnitList, allServiceUnits, filterText)
+				return nil
+			case 'e':
+				_, _, err = dbusConn.EnableUnitFiles([]string{getServiceName(getCurrentUnitPath(sdUnitList))}, false, true)
+				if err != nil {
+					log.Fatal(err)
+				}
+				err = dbusConn.Reload()
+				if err != nil {
+					log.Fatal(err)
+				}
+				allServiceUnits, err = getAllServiceUnits(dbusConn)
+				if err != nil {
+					log.Fatal("Failed")
+				}
+				drawTable(sdUnitList, allServiceUnits, filterText)
+				return nil
+			case 'd':
+				_, err = dbusConn.DisableUnitFiles([]string{getServiceName(getCurrentUnitPath(sdUnitList))}, false)
+				if err != nil {
+					log.Fatal(err)
+				}
+				err = dbusConn.Reload()
+				if err != nil {
+					log.Fatal(err)
+				}
+				allServiceUnits, err = getAllServiceUnits(dbusConn)
+				if err != nil {
+					log.Fatal("Failed")
+				}
+				drawTable(sdUnitList, allServiceUnits, filterText)
 				return nil
 			case '/':
 				grid.RemoveItem(helpText).
@@ -182,16 +250,14 @@ func main() {
 				app.SetFocus(filterInput)
 				return nil
 			case ' ':
-				if statusShown {
-					pages.HidePage("status")
-					statusShown = false
-					app.SetFocus(sdUnitList)
-				} else {
-					currentRow, _ := sdUnitList.GetSelection()
-					statusBox.SetText(getServiceStatus(sdUnitList.GetCell(currentRow, 2).Text))
-					pages.ShowPage("status")
-					statusShown = true
-				}
+				//pages.HidePage("status")
+				//statusShown = false
+				//app.SetFocus(sdUnitList)
+				statusBox.SetText(getServiceStatus(getCurrentUnitPath(sdUnitList)))
+				pages.ShowPage("status")
+				statusShown = true
+				app.SetFocus(statusBox)
+				return nil
 			}
 		}
 		return event
@@ -210,6 +276,19 @@ func main() {
 				AddItem(nil, 0, 1, false), 0, 7, false).
 			AddItem(nil, 0, 1, false)
 	}
+	statusBox.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		switch event.Key() {
+		case tcell.KeyRune:
+			switch event.Rune() {
+			case ' ':
+				pages.HidePage("status")
+				statusShown = false
+				app.SetFocus(sdUnitList)
+				return nil
+			}
+		}
+		return event
+	})
 
 	pages.AddPage("main", grid, true, true).
 		AddPage("status", modal(statusBox), true, false)
