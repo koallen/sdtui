@@ -53,14 +53,19 @@ func getAllServiceUnits(conn *dbus.Conn) ([]ServiceUnit, error) {
 func main() {
 	filterText := ""
 	app := tview.NewApplication()
+	grid := tview.NewGrid()
 	filterInput := tview.NewInputField()
 	sdUnitList := tview.NewTable()
+	helpText := tview.NewTextView().
+		SetTextAlign(tview.AlignCenter).
+		SetText("(q) Exit (r) Restart service (e) Edit (/) Filter")
 
 	filterInput.SetLabel("Filter by: ").
 		SetDoneFunc(func(key tcell.Key) {
-			switch key {
-			case tcell.KeyEnter:
+			if key == tcell.KeyEnter || key == tcell.KeyEscape {
 				filterText = filterInput.GetText()
+				grid.RemoveItem(filterInput).
+					AddItem(helpText, 1, 0, 1, 1, 0, 0, false)
 				app.SetFocus(sdUnitList)
 			}
 		})
@@ -134,6 +139,8 @@ func main() {
 				//sdUnitList.SetItemText(sdUnitList.GetCurrentItem(), "this service is restarted", "")
 				return nil
 			case '/':
+				grid.RemoveItem(helpText).
+					AddItem(filterInput, 1, 0, 1, 1, 0, 0, false)
 				app.SetFocus(filterInput)
 				return nil
 			}
@@ -141,10 +148,9 @@ func main() {
 		return event
 	})
 
-	grid := tview.NewGrid().
-		SetRows(0, 1).
+	grid.SetRows(0, 1).
 		AddItem(sdUnitList, 0, 0, 1, 1, 0, 0, true).
-		AddItem(filterInput, 1, 0, 1, 1, 0, 0, false)
+		AddItem(helpText, 1, 0, 1, 1, 0, 0, false)
 
 	if err := app.SetRoot(grid, true).Run(); err != nil {
 		panic(err)
