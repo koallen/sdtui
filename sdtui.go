@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"os/exec"
 	"strings"
 	"github.com/coreos/go-systemd/dbus"
 	"github.com/gdamore/tcell"
@@ -48,6 +50,22 @@ func getAllServiceUnits(conn *dbus.Conn) ([]ServiceUnit, error) {
 	}
 
 	return serviceUnits, nil
+}
+
+func getServiceName(unitPath string) string {
+	strSplit := strings.Split(unitPath, "/")
+	serviceName := strSplit[len(strSplit)-1]
+
+	return serviceName
+}
+
+func getServiceStatus(unitPath string) string {
+	cmd := exec.Command("systemctl", "status", getServiceName(unitPath))
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Run() // the err is not checked because systemctl returns non-zero code
+
+	return out.String()
 }
 
 func drawTable(table *tview.Table, unitList []ServiceUnit, filter string) {
@@ -114,10 +132,15 @@ func main() {
 	}
 
 	filterText := ""
+	statusShown := false
 	app := tview.NewApplication()
+	pages := tview.NewPages()
 	grid := tview.NewGrid()
 	filterInput := tview.NewInputField()
 	sdUnitList := tview.NewTable()
+	statusBox := tview.NewTextView()
+	statusBox.SetBorder(true).
+		SetTitle(" Service status ")
 	helpText := tview.NewTextView().
 		SetTextAlign(tview.AlignCenter).
 		SetText("(q) Exit (r) Restart (R) Reload (s) Start (S) Stop (e) Enable (d) Disable (/) Filter")
@@ -158,6 +181,17 @@ func main() {
 					AddItem(filterInput, 1, 0, 1, 1, 0, 0, false)
 				app.SetFocus(filterInput)
 				return nil
+			case ' ':
+				if statusShown {
+					pages.HidePage("status")
+					statusShown = false
+					app.SetFocus(sdUnitList)
+				} else {
+					currentRow, _ := sdUnitList.GetSelection()
+					statusBox.SetText(getServiceStatus(sdUnitList.GetCell(currentRow, 2).Text))
+					pages.ShowPage("status")
+					statusShown = true
+				}
 			}
 		}
 		return event
@@ -167,7 +201,20 @@ func main() {
 		AddItem(sdUnitList, 0, 0, 1, 1, 0, 0, true).
 		AddItem(helpText, 1, 0, 1, 1, 0, 0, false)
 
-	if err := app.SetRoot(grid, true).Run(); err != nil {
+	modal := func(p tview.Primitive) tview.Primitive {
+		return tview.NewFlex().
+			AddItem(nil, 0, 1, false).
+			AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
+				AddItem(nil, 0, 1, false).
+				AddItem(p, 0, 7, false).
+				AddItem(nil, 0, 1, false), 0, 7, false).
+			AddItem(nil, 0, 1, false)
+	}
+
+	pages.AddPage("main", grid, true, true).
+		AddPage("status", modal(statusBox), true, false)
+
+	if err := app.SetRoot(pages, true).Run(); err != nil {
 		panic(err)
 	}
 }
