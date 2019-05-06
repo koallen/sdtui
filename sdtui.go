@@ -98,6 +98,7 @@ func drawTable(table *tview.Table, unitList []ServiceUnit, filter string) {
 			index++
 		}
 	}
+	table.ScrollToBeginning()
 }
 
 func main() {
