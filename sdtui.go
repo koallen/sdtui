@@ -51,11 +51,22 @@ func getAllServiceUnits(conn *dbus.Conn) ([]ServiceUnit, error) {
 }
 
 func main() {
+	filterText := ""
 	app := tview.NewApplication()
+	filterInput := tview.NewInputField()
+	sdUnitList := tview.NewTable()
+
+	filterInput.SetLabel("Filter by: ").
+		SetDoneFunc(func(key tcell.Key) {
+			switch key {
+			case tcell.KeyEnter:
+				filterText = filterInput.GetText()
+				app.SetFocus(sdUnitList)
+			}
+		})
 
 	// display services
-	sdUnitList := tview.NewTable().
-		SetFixed(1, 4).
+	sdUnitList.SetFixed(1, 4).
 		SetCell(0, 0,
 			tview.NewTableCell("Enabled").
 				SetTextColor(tcell.ColorTeal).
@@ -122,16 +133,20 @@ func main() {
 			case 'r':
 				//sdUnitList.SetItemText(sdUnitList.GetCurrentItem(), "this service is restarted", "")
 				return nil
+			case '/':
+				app.SetFocus(filterInput)
+				return nil
 			}
 		}
 		return event
 	})
 
-	frame := tview.NewFrame(sdUnitList).
-		SetBorders(0, 0, 0, 0, 0, 0).
-		AddText("(q) Exit (r) Restart service (e) Edit", false, tview.AlignCenter, tcell.ColorWhite)
-	frame.SetBackgroundColor(tcell.ColorTeal)
-	if err := app.SetRoot(frame, true).SetFocus(sdUnitList).Run(); err != nil {
+	grid := tview.NewGrid().
+		SetRows(0, 1).
+		AddItem(sdUnitList, 0, 0, 1, 1, 0, 0, true).
+		AddItem(filterInput, 1, 0, 1, 1, 0, 0, false)
+
+	if err := app.SetRoot(grid, true).Run(); err != nil {
 		panic(err)
 	}
 }
