@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"github.com/coreos/go-systemd/dbus"
 	"os/exec"
+	"sort"
 	"strings"
 )
 
@@ -46,6 +47,9 @@ func getAllServiceUnits(conn *dbus.Conn) ([]ServiceUnit, error) {
 		}
 		index++
 	}
+	sort.Slice(serviceUnits, func(i, j int) bool {
+		return getServiceName(serviceUnits[i].File.Path) < getServiceName(serviceUnits[j].File.Path)
+	})
 
 	return serviceUnits, nil
 }
