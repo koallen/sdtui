@@ -1,27 +1,29 @@
 package main
 
 import (
-	"log"
 	"github.com/coreos/go-systemd/dbus"
 	"github.com/gdamore/tcell"
 	"github.com/rivo/tview"
+	"log"
+	"os"
 )
 
-var allServiceUnits []ServiceUnit
-
 func main() {
+	// get unit information from systemd dbus API
 	dbusConn, err := dbus.New()
 	if err != nil {
-		return
+		log.Fatal(err)
+		os.Exit(1)
 	}
 	defer dbusConn.Close()
 
-	allServiceUnits, err = getAllServiceUnits(dbusConn)
+	allServiceUnits, err := getAllServiceUnits(dbusConn)
 	if err != nil {
 		log.Fatal(err)
-		return
+		os.Exit(1)
 	}
 
+	// declare UI-related variables
 	filterText := ""
 	statusShown := false
 	app := tview.NewApplication()
@@ -30,12 +32,13 @@ func main() {
 	filterInput := tview.NewInputField()
 	sdUnitList := tview.NewTable()
 	statusBox := tview.NewTextView()
-	statusBox.SetBorder(true).
-		SetTitle(" Service status ")
+
+	// set help text at the bottom of the screen
 	helpText := tview.NewTextView().
 		SetTextAlign(tview.AlignCenter).
 		SetText("(q) Exit (r) Reload/Restart (s) Start (S) Stop (e) Enable (d) Disable (/) Filter")
 
+	// set filter at the bottom of the screen
 	filterInput.SetLabel("Filter by: ").
 		SetDoneFunc(func(key tcell.Key) {
 			if key == tcell.KeyEnter || key == tcell.KeyEscape {
@@ -53,10 +56,8 @@ func main() {
 		SetBorderColor(tcell.ColorGray).
 		SetBorderPadding(0, 0, 1, 1).
 		SetTitle(" sdtui ")
-
 	drawTable(sdUnitList, allServiceUnits, filterText)
 
-	// define key handler
 	sdUnitList.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
 		case tcell.KeyRune:
@@ -134,9 +135,6 @@ func main() {
 				app.SetFocus(filterInput)
 				return nil
 			case ' ':
-				//pages.HidePage("status")
-				//statusShown = false
-				//app.SetFocus(sdUnitList)
 				statusBox.SetText(getServiceStatus(getCurrentUnitPath(sdUnitList)))
 				pages.ShowPage("status")
 				statusShown = true
@@ -151,15 +149,10 @@ func main() {
 		AddItem(sdUnitList, 0, 0, 1, 1, 0, 0, true).
 		AddItem(helpText, 1, 0, 1, 1, 0, 0, false)
 
-	modal := func(p tview.Primitive) tview.Primitive {
-		return tview.NewFlex().
-			AddItem(nil, 0, 1, false).
-			AddItem(tview.NewFlex().SetDirection(tview.FlexRow).
-				AddItem(nil, 0, 1, false).
-				AddItem(p, 0, 7, false).
-				AddItem(nil, 0, 1, false), 0, 7, false).
-			AddItem(nil, 0, 1, false)
-	}
+	// initialize the box showing service status
+	statusBox.SetBorder(true).
+		SetTitle(" Service status ")
+
 	statusBox.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
 		case tcell.KeyRune:

@@ -1,14 +1,14 @@
 package main
 
 import (
-	"strings"
 	"bytes"
-	"os/exec"
 	"github.com/coreos/go-systemd/dbus"
+	"os/exec"
+	"strings"
 )
 
 type ServiceUnit struct {
-	File dbus.UnitFile
+	File   dbus.UnitFile
 	Status dbus.UnitStatus
 }
 
