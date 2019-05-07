@@ -48,7 +48,7 @@ func getAllServiceUnits(conn *dbus.Conn) ([]ServiceUnit, error) {
 		index++
 	}
 	sort.Slice(serviceUnits, func(i, j int) bool {
-		return getServiceName(serviceUnits[i].File.Path) < getServiceName(serviceUnits[j].File.Path)
+		return strings.ToLower(getServiceName(serviceUnits[i].File.Path)) < strings.ToLower(getServiceName(serviceUnits[j].File.Path))
 	})
 
 	return serviceUnits, nil
